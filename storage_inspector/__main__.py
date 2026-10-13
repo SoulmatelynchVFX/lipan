@@ -6,7 +6,7 @@ import os
 from pathlib import Path
 
 from .scanner import directory_stats
-from .windows_inventory import discover_installed_apps
+from .windows_inventory import discover_inventory
 
 
 def main(argv=None):
@@ -18,12 +18,14 @@ def main(argv=None):
     if args.list_apps:
         if os.name != "nt":
             parser.error("--list-apps 仅支持 Windows")
+        inventory = discover_inventory()
         report = {
+            **asdict(inventory),
             "source": "Windows uninstall registry",
-            "applications": [asdict(app) for app in discover_installed_apps()],
+            "partial": inventory.partial,
             "note": "注册表清单可能不完整；安装位置不代表应用全部数据，没有执行卸载命令。",
         }
-        status = 0
+        status = 2 if inventory.partial else 0
     else:
         stats = directory_stats(args.path)
         report = {**asdict(stats), "partial": stats.partial,

@@ -16,7 +16,9 @@ python -m storage_inspector --path "D:\Example"
 
 ## 如何理解结果
 
-- 应用清单来自 HKLM/HKCU 卸载项及 HKLM 的 WOW6432Node 项，隐藏系统组件不列出。同名同发行商项合并，优先保留有安装路径的条目；不能据此区分所有并存版本。
+- 应用清单来自 HKLM/HKCU 卸载项及 HKLM 的 WOW6432Node 项，隐藏系统组件不列出。不同版本或安装位置分别保留；仅名称、发行商、版本和规范化安装路径都相同的记录合并。缺少安装路径的记录按注册表键分别保留，不猜测属于哪个已知安装。
+- `app_id` 由上述身份字段生成，不依赖枚举顺序。与旧版仅按名称和发行商生成的 ID 不兼容；版本、路径或未知安装的注册表键变化也会改变 ID，不应用它追踪跨升级历史。
+- 应用清单新增 `partial`、`error_count`、`errors` 和 `missing_locations`。根键不存在会列入 `missing_locations`，不视为权限错误；读取失败会返回部分结果及退出码 2，保留最多 100 条错误明细。没有错误也不代表覆盖了全部安装方式或注册表视图。
 - 未注册的软件、便携应用和无法读取的注册表项可能缺失。安装位置仅是线索，不代表应用全部数据；本版不做应用占用汇总。
 - `logical_bytes` 是观测到的文件逻辑长度，不是实际磁盘分配量，更不是可清理容量。
 - 单次统计按文件身份去重硬链接；跳过遇到的符号链接、Windows reparse point（含 junction）及离线/召回属性项，不主动读取云占位文件正文。
@@ -29,6 +31,7 @@ JSON 会包含本机应用信息和绝对路径，不要直接提交或公开。
 
 ```powershell
 python -m unittest discover -s tests -p "test_storage_inspector.py" -v
+python -m unittest discover -s tests -p "test_inventory.py" -v
 ```
 
 测试只使用临时合成文件及模拟错误，不扫描真实应用数据，不执行清理。完整原型的后续功能尚未作为这个基础模块发布。

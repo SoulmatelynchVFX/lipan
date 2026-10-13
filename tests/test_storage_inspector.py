@@ -94,7 +94,7 @@ class StorageInspectorTests(unittest.TestCase):
             self.assertEqual(discover_installed_apps(), [])
         self.assertEqual(_stable_id("App", "Maker"), _stable_id("App", "Maker"))
 
-    def test_inventory_deduplicates_and_prefers_install_location(self):
+    def test_inventory_preserves_unknown_location_alongside_known_install(self):
         records = [
             {"DisplayName": "Editor", "Publisher": "Maker"},
             {"DisplayName": "Editor", "Publisher": "Maker", "InstallLocation": '"D:\\Editor"',
@@ -119,12 +119,13 @@ class StorageInspectorTests(unittest.TestCase):
         )
         with patch.dict("sys.modules", {"winreg": registry}), \
                 patch("storage_inspector.windows_inventory.os.name", "nt"), \
-                patch("storage_inspector.windows_inventory._read_values", side_effect=lambda key: records[key]):
+                patch("storage_inspector.windows_inventory._read_values", side_effect=lambda key, *args: records[key]):
             apps = discover_installed_apps()
-        self.assertEqual(len(apps), 1)
-        self.assertEqual(apps[0].install_location, "D:\\Editor")
-        self.assertEqual(apps[0].version, "1.0")
-        self.assertEqual(apps[0].uninstall_command, "never-execute.exe")
+        self.assertEqual(len(apps), 2)
+        installed = next(app for app in apps if app.install_location)
+        self.assertEqual(installed.install_location, "D:\\Editor")
+        self.assertEqual(installed.version, "1.0")
+        self.assertEqual(installed.uninstall_command, "never-execute.exe")
 
     def test_registry_value_errors_are_skipped(self):
         def enum_value(key, index):
