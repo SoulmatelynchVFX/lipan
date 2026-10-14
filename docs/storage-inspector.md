@@ -1,6 +1,6 @@
 # 璃盘：只读基础工具
 
-这是从个人存储分析原型中整理出的独立基础模块。目前只提供 Windows 应用清单和显式指定路径的文件大小统计，不包含网页界面、全盘应用归属、规则知识库、历史数据库或 AI 建议。
+这是从个人存储分析原型中整理出的独立基础模块。目前提供 Windows 应用清单、指定路径统计及按应用 ID 查看安装目录占用，不包含网页界面、全盘应用归属、规则知识库、历史数据库或 AI 建议。
 
 Python 3.11+，无需第三方依赖。在仓库根目录运行：
 
@@ -10,11 +10,17 @@ python -m storage_inspector --list-apps
 
 # 仅在明确指定后遍历一个文件或目录
 python -m storage_inspector --path "D:\Example"
+
+# 将下面的 ID 替换成 --list-apps 返回的当前 app_id
+python -m storage_inspector --app registry.REPLACE_WITH_APP_ID
 ```
 
 结果为标准输出中的 JSON，不自动保存报告。不带参数只显示用法；按 Ctrl+C 可中断。程序不读取文件正文，不删除、移动文件或调用外部服务。
 
 ## 如何理解结果
+
+- `--app` 只扫描精确匹配 ID 的 `InstallLocation`，不是整盘搜索，也不根据卸载命令推导路径。只接受本地盘符下的绝对目录，拒绝盘符根、网络/设备路径、相对路径、环境变量和链接/离线根目录。没有安装位置、ID 无效或目录无法读取时返回 JSON 错误及退出码 2，不以零占用冒充成功。
+- 应用结果的 `scope` 为 `install_location_only`，`application` 为所选清单项，`scan` 为该目录的统计或 `null`，`inventory` 保留清单读取诊断。清单或目录统计有缺口时顶层 `partial` 为真。缓存、用户数据及其他盘上的文件未自动计入；目录内也可能有共享文件，不能把多个应用结果直接相加。
 
 - 应用清单来自 HKLM/HKCU 卸载项及 HKLM 的 WOW6432Node 项，隐藏系统组件不列出。不同版本或安装位置分别保留；仅名称、发行商、版本和规范化安装路径都相同的记录合并。缺少安装路径的记录按注册表键分别保留，不猜测属于哪个已知安装。
 - `app_id` 由上述身份字段生成，不依赖枚举顺序。与旧版仅按名称和发行商生成的 ID 不兼容；版本、路径或未知安装的注册表键变化也会改变 ID，不应用它追踪跨升级历史。
@@ -32,6 +38,7 @@ JSON 会包含本机应用信息和绝对路径，不要直接提交或公开。
 ```powershell
 python -m unittest discover -s tests -p "test_storage_inspector.py" -v
 python -m unittest discover -s tests -p "test_inventory.py" -v
+python -m unittest discover -s tests -p "test_app_scan.py" -v
 ```
 
 测试只使用临时合成文件及模拟错误，不扫描真实应用数据，不执行清理。完整原型的后续功能尚未作为这个基础模块发布。

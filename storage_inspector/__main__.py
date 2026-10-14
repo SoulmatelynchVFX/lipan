@@ -5,6 +5,7 @@ import json
 import os
 from pathlib import Path
 
+from .app_scan import inspect_app
 from .scanner import directory_stats
 from .windows_inventory import discover_inventory
 
@@ -14,11 +15,16 @@ def main(argv=None):
     action = parser.add_mutually_exclusive_group(required=True)
     action.add_argument("--list-apps", action="store_true", help="读取 Windows 卸载注册表，不扫描目录")
     action.add_argument("--path", type=Path, help="只统计指定文件或目录的逻辑字节数")
+    action.add_argument("--app", metavar="APP_ID", help="按清单 ID 只统计该应用声明的安装目录")
     args = parser.parse_args(argv)
-    if args.list_apps:
+    if args.list_apps or args.app is not None:
         if os.name != "nt":
-            parser.error("--list-apps 仅支持 Windows")
+            parser.error("--list-apps 和 --app 仅支持 Windows")
         inventory = discover_inventory()
+    if args.app is not None:
+        report = inspect_app(inventory, args.app)
+        status = 2 if report["partial"] else 0
+    elif args.list_apps:
         report = {
             **asdict(inventory),
             "source": "Windows uninstall registry",

@@ -16,11 +16,16 @@ python -m storage_inspector --list-apps
 
 # 只统计明确指定的文件或目录
 python -m storage_inspector --path "D:\Example"
+
+# 使用 --list-apps 输出的当前 app_id，查看该安装目录
+python -m storage_inspector --app registry.REPLACE_WITH_APP_ID
 ```
 
 输出为 JSON，不自动保存或上传。统计会跳过遇到的链接及离线属性项，对硬链接去重，并报告访问失败。文件逻辑长度不等于磁盘实际分配量，更不代表可清理容量；本版不汇总应用全部占用。
 
 应用清单保留同名软件的不同版本和安装位置；读取注册表失败时返回错误明细和部分结果标记，不将缺失信息当作完整清单。
+
+`--app` 仅统计所选应用声明的安装目录，不自动寻找缓存或用户数据。缺少安装路径、路径不安全或 ID 已变化时会说明原因，不扩大到整盘扫描。
 
 使用说明、限制与测试命令见 [只读基础工具](docs/storage-inspector.md)。
 
