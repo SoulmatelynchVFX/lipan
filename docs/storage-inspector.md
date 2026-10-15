@@ -19,6 +19,23 @@ python -m storage_inspector --app registry.REPLACE_WITH_APP_ID
 
 ## 如何理解结果
 
+### 限制单次扫描
+
+`--path` 和 `--app` 支持可选的文件数及时长限制，可分别使用或同时使用：
+
+```powershell
+python -m storage_inspector --path "D:\Example" --max-files 10000 --max-seconds 5
+python -m storage_inspector --app registry.REPLACE_WITH_APP_ID --max-seconds 5
+```
+
+不指定时保留原有完整遍历行为。`--max-files` 必须为正整数，限制计入的去重普通文件数，不是目录数；`--max-seconds` 必须为有限正数，仅约束目录统计阶段，不包含读取应用清单的时间。纯清单模式 `--list-apps` 不接受这些参数。
+
+触及上限时保留当前统计，`stop_reason` 为 `max_files` 或 `max_seconds`，`partial` 为真，退出码为 2；应用模式还会在 `scan` 中显示停止原因。这不是完整总量，也不是可清理容量。即使恰好计入最后一个文件，触及上限仍保守标为部分结果；未触发限制时 `stop_reason` 为 `null`，但读取错误或跳过项仍可能使 `partial` 为真。
+
+时长为软限制：在遍历步骤之间检查，不能中断已阻塞的系统调用。目录按需逐项枚举，提前停止会关闭已打开的目录迭代器。不同遍历顺序可能得到不同的部分结果；本版不提供断点续扫。
+
+### 统计边界
+
 - `--app` 只扫描精确匹配 ID 的 `InstallLocation`，不是整盘搜索，也不根据卸载命令推导路径。只接受本地盘符下的绝对目录，拒绝盘符根、网络/设备路径、相对路径、环境变量和链接/离线根目录。没有安装位置、ID 无效或目录无法读取时返回 JSON 错误及退出码 2，不以零占用冒充成功。
 - 应用结果的 `scope` 为 `install_location_only`，`application` 为所选清单项，`scan` 为该目录的统计或 `null`，`inventory` 保留清单读取诊断。清单或目录统计有缺口时顶层 `partial` 为真。缓存、用户数据及其他盘上的文件未自动计入；目录内也可能有共享文件，不能把多个应用结果直接相加。
 
@@ -39,6 +56,7 @@ JSON 会包含本机应用信息和绝对路径，不要直接提交或公开。
 python -m unittest discover -s tests -p "test_storage_inspector.py" -v
 python -m unittest discover -s tests -p "test_inventory.py" -v
 python -m unittest discover -s tests -p "test_app_scan.py" -v
+python -m unittest discover -s tests -p "test_scan_limits.py" -v
 ```
 
 测试只使用临时合成文件及模拟错误，不扫描真实应用数据，不执行清理。完整原型的后续功能尚未作为这个基础模块发布。

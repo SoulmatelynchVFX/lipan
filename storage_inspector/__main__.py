@@ -6,7 +6,7 @@ import os
 from pathlib import Path
 
 from .app_scan import inspect_app
-from .scanner import directory_stats
+from .scanner import directory_stats, validate_limits
 from .windows_inventory import discover_inventory
 
 
@@ -16,13 +16,21 @@ def main(argv=None):
     action.add_argument("--list-apps", action="store_true", help="读取 Windows 卸载注册表，不扫描目录")
     action.add_argument("--path", type=Path, help="只统计指定文件或目录的逻辑字节数")
     action.add_argument("--app", metavar="APP_ID", help="按清单 ID 只统计该应用声明的安装目录")
+    parser.add_argument("--max-files", type=int, help="扫描至多计入指定数量的文件，必须为正整数")
+    parser.add_argument("--max-seconds", type=float, help="扫描时长软限制（秒），必须为有限正数")
     args = parser.parse_args(argv)
+    try:
+        validate_limits(args.max_files, args.max_seconds)
+    except ValueError as error:
+        parser.error(str(error))
+    if args.list_apps and (args.max_files is not None or args.max_seconds is not None):
+        parser.error("扫描限制仅用于 --path 或 --app，不能用于 --list-apps")
     if args.list_apps or args.app is not None:
         if os.name != "nt":
             parser.error("--list-apps 和 --app 仅支持 Windows")
         inventory = discover_inventory()
     if args.app is not None:
-        report = inspect_app(inventory, args.app)
+        report = inspect_app(inventory, args.app, max_files=args.max_files, max_seconds=args.max_seconds)
         status = 2 if report["partial"] else 0
     elif args.list_apps:
         report = {
@@ -33,7 +41,7 @@ def main(argv=None):
         }
         status = 2 if inventory.partial else 0
     else:
-        stats = directory_stats(args.path)
+        stats = directory_stats(args.path, max_files=args.max_files, max_seconds=args.max_seconds)
         report = {**asdict(stats), "partial": stats.partial,
                   "note": "逻辑长度不是磁盘实际分配量或可清理容量；扫描期间变化可能造成误差。"}
         status = 2 if stats.partial else 0

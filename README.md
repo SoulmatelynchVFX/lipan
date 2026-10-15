@@ -27,6 +27,8 @@ python -m storage_inspector --app registry.REPLACE_WITH_APP_ID
 
 `--app` 仅统计所选应用声明的安装目录，不自动寻找缓存或用户数据。缺少安装路径、路径不安全或 ID 已变化时会说明原因，不扩大到整盘扫描。
 
+扫描较大目录时可为 `--path` 或 `--app` 添加 `--max-files 10000 --max-seconds 5`。触及上限返回带停止原因的部分结果，不冒充完整占用；时长限制不能中断阻塞中的系统调用。省略限制时仍按原有方式遍历。
+
 使用说明、限制与测试命令见 [只读基础工具](docs/storage-inspector.md)。
 
 ## 为什么做璃盘

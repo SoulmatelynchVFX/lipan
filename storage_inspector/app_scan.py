@@ -4,7 +4,7 @@ from pathlib import Path, PureWindowsPath
 import re
 import stat
 
-from .scanner import directory_stats, should_skip
+from .scanner import directory_stats, should_skip, validate_limits
 from .windows_inventory import InventoryResult
 
 
@@ -21,7 +21,8 @@ def valid_install_location(value: str) -> bool:
     )
 
 
-def inspect_app(inventory: InventoryResult, app_id: str) -> dict:
+def inspect_app(inventory: InventoryResult, app_id: str, *, max_files=None, max_seconds=None) -> dict:
+    validate_limits(max_files, max_seconds)
     report = {
         "requested_app_id": app_id,
         "scope": "install_location_only",
@@ -53,7 +54,7 @@ def inspect_app(inventory: InventoryResult, app_id: str) -> dict:
         return unavailable(f"无法读取安装目录：{error}")
     if should_skip(info) or not stat.S_ISDIR(info.st_mode):
         return unavailable("安装位置不是普通目录，或带有链接、离线属性；未开始扫描。")
-    stats = directory_stats(path)
+    stats = directory_stats(path, max_files=max_files, max_seconds=max_seconds)
     report["scan"] = {**asdict(stats), "partial": stats.partial}
     report["partial"] = inventory.partial or stats.partial
     return report
