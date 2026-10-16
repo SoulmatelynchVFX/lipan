@@ -29,6 +29,8 @@ python -m storage_inspector --app registry.REPLACE_WITH_APP_ID
 
 扫描较大目录时可为 `--path` 或 `--app` 添加 `--max-files 10000 --max-seconds 5`。触及上限返回带停止原因的部分结果，不冒充完整占用；时长限制不能中断阻塞中的系统调用。省略限制时仍按原有方式遍历。
 
+目录遍历期间按 Ctrl+C，会返回标记为 `interrupted` 的已有统计并以 130 退出；这些只是部分结果，不代表完整占用。扫描开始前中断则仅提示退出，不生成虚假报告。
+
 使用说明、限制与测试命令见 [只读基础工具](docs/storage-inspector.md)。
 
 ## 为什么做璃盘

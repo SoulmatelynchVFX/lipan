@@ -15,7 +15,13 @@ python -m storage_inspector --path "D:\Example"
 python -m storage_inspector --app registry.REPLACE_WITH_APP_ID
 ```
 
-结果为标准输出中的 JSON，不自动保存报告。不带参数只显示用法；按 Ctrl+C 可中断。程序不读取文件正文，不删除、移动文件或调用外部服务。
+结果为标准输出中的 JSON，不自动保存报告。不带参数只显示用法。程序不读取文件正文，不删除、移动文件或调用外部服务。
+
+## 中断扫描
+
+`--path` 或 `--app` 的目录遍历期间按一次 Ctrl+C，收到中断后会关闭活动目录迭代器，并输出已有观测数据：`stop_reason` 为 `interrupted`，`partial` 为真，退出码为 130。应用模式的停止原因位于 `scan.stop_reason`，顶层也会标记部分结果。零文件的中断结果不代表目录为空，中断不是访问错误，不增加 `error_count`。
+
+若中断发生在应用清单读取或扫描初始化阶段，还没有可返回的扫描报告，只在标准错误输出提示并返回 130。清理或输出阶段再次中断、强制终止进程时，不保证报告完整；阻塞的系统调用也可能延迟响应。本版不保存续扫状态，重新运行会重新遍历。
 
 ## 如何理解结果
 
@@ -57,6 +63,7 @@ python -m unittest discover -s tests -p "test_storage_inspector.py" -v
 python -m unittest discover -s tests -p "test_inventory.py" -v
 python -m unittest discover -s tests -p "test_app_scan.py" -v
 python -m unittest discover -s tests -p "test_scan_limits.py" -v
+python -m unittest discover -s tests -p "test_scan_interrupt.py" -v
 ```
 
 测试只使用临时合成文件及模拟错误，不扫描真实应用数据，不执行清理。完整原型的后续功能尚未作为这个基础模块发布。

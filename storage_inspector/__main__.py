@@ -4,13 +4,14 @@ from dataclasses import asdict
 import json
 import os
 from pathlib import Path
+import sys
 
 from .app_scan import inspect_app
 from .scanner import directory_stats, validate_limits
 from .windows_inventory import discover_inventory
 
 
-def main(argv=None):
+def _main(argv=None):
     parser = argparse.ArgumentParser(description="璃盘：只读应用清单与指定路径统计")
     action = parser.add_mutually_exclusive_group(required=True)
     action.add_argument("--list-apps", action="store_true", help="读取 Windows 卸载注册表，不扫描目录")
@@ -31,7 +32,8 @@ def main(argv=None):
         inventory = discover_inventory()
     if args.app is not None:
         report = inspect_app(inventory, args.app, max_files=args.max_files, max_seconds=args.max_seconds)
-        status = 2 if report["partial"] else 0
+        scan = report.get("scan") or {}
+        status = 130 if scan.get("stop_reason") == "interrupted" else 2 if report["partial"] else 0
     elif args.list_apps:
         report = {
             **asdict(inventory),
@@ -44,10 +46,19 @@ def main(argv=None):
         stats = directory_stats(args.path, max_files=args.max_files, max_seconds=args.max_seconds)
         report = {**asdict(stats), "partial": stats.partial,
                   "note": "逻辑长度不是磁盘实际分配量或可清理容量；扫描期间变化可能造成误差。"}
-        status = 2 if stats.partial else 0
+        status = 130 if stats.stop_reason == "interrupted" else 2 if stats.partial else 0
     # ASCII escaping also makes redirected output usable with legacy Windows encodings.
     print(json.dumps(report, ensure_ascii=True, indent=2))
     return status
+
+
+def main(argv=None):
+    try:
+        return _main(argv)
+    except KeyboardInterrupt:
+        # Inventory discovery and output may be interrupted before a report is ready.
+        print("操作已中断，未输出完整报告。", file=sys.stderr)
+        return 130
 
 
 if __name__ == "__main__":

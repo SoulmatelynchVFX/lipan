@@ -98,6 +98,9 @@ def directory_stats(path: Path, *, max_files=None, max_seconds=None) -> Director
                     result.skipped += 1
             except OSError as error:
                 result.record_error(current, error)
+    except KeyboardInterrupt:
+        # Preserve observations without mistaking an interrupted walk for completion.
+        result.stop_reason = "interrupted"
     finally:
         for _, entries in reversed(stack):
             close = getattr(entries, "close", None)
