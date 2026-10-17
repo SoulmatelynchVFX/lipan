@@ -1,5 +1,6 @@
 """Read file metadata only; never follow discovered links or open file contents."""
 from dataclasses import dataclass, field
+import heapq
 import math
 import os
 from pathlib import Path
@@ -22,6 +23,7 @@ class DirectoryStats:
     error_count: int = 0
     errors: list[dict] = field(default_factory=list)
     stop_reason: str | None = None
+    largest_files: list[dict] = field(default_factory=list)
 
     @property
     def partial(self):
@@ -48,8 +50,14 @@ def validate_limits(max_files=None, max_seconds=None):
         raise ValueError("max_seconds 必须是有限正数")
 
 
-def directory_stats(path: Path, *, max_files=None, max_seconds=None) -> DirectoryStats:
+def validate_top_files(top_files=None):
+    if top_files is not None and (type(top_files) is not int or top_files <= 0):
+        raise ValueError("top_files 必须是正整数")
+
+
+def directory_stats(path: Path, *, max_files=None, max_seconds=None, top_files=None) -> DirectoryStats:
     validate_limits(max_files, max_seconds)
+    validate_top_files(top_files)
     deadline = time.monotonic() + max_seconds if max_seconds is not None else None
     # abspath normalizes the supplied path without resolving symlinks.
     root = Path(os.path.abspath(path))
@@ -58,6 +66,7 @@ def directory_stats(path: Path, *, max_files=None, max_seconds=None) -> Director
     # before examining its files. Close every iterator on early termination too.
     stack = [(root, iter((root,)))]
     seen = set()
+    largest = []
     try:
         while stack:
             if deadline is not None and time.monotonic() >= deadline:
@@ -94,6 +103,12 @@ def directory_stats(path: Path, *, max_files=None, max_seconds=None) -> Director
                         seen.add(identity)
                     result.logical_bytes += info.st_size
                     result.file_count += 1
+                    if top_files is not None:
+                        candidate = (info.st_size, str(current))
+                        if len(largest) < top_files:
+                            heapq.heappush(largest, candidate)
+                        else:
+                            heapq.heappushpop(largest, candidate)
                 else:
                     result.skipped += 1
             except OSError as error:
@@ -106,4 +121,8 @@ def directory_stats(path: Path, *, max_files=None, max_seconds=None) -> Director
             close = getattr(entries, "close", None)
             if close:
                 close()
+    result.largest_files = [
+        {"path": path, "logical_bytes": size}
+        for size, path in sorted(largest, reverse=True)
+    ]
     return result

@@ -33,6 +33,8 @@ python -m storage_inspector --app registry.REPLACE_WITH_APP_ID
 
 使用说明、限制与测试命令见 [只读基础工具](docs/storage-inspector.md)。
 
+为 `--path` 或 `--app` 添加 `--top-files 10` 可列出已计入文件中逻辑长度最大的前 10 项，输出在 `largest_files`（应用模式为 `scan.largest_files`）。排行沿用同一次只读扫描，不读取正文；部分扫描仅代表已观测范围，不代表目录全局排行，也不是删除建议。
+
 ## 为什么做璃盘
 
 电脑上的空间往往散落在安装目录、AppData、ProgramData、文档、下载和其他磁盘中。单看文件夹大小，很难回答几个实际问题：

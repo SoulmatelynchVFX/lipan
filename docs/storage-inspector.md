@@ -40,6 +40,17 @@ python -m storage_inspector --app registry.REPLACE_WITH_APP_ID --max-seconds 5
 
 时长为软限制：在遍历步骤之间检查，不能中断已阻塞的系统调用。目录按需逐项枚举，提前停止会关闭已打开的目录迭代器。不同遍历顺序可能得到不同的部分结果；本版不提供断点续扫。
 
+### 大文件排行
+
+```powershell
+python -m storage_inspector --path "D:\Example" --top-files 10
+python -m storage_inspector --app registry.REPLACE_WITH_APP_ID --top-files 5 --max-seconds 5
+```
+
+`--top-files N` 接受正整数，仅用于 `--path` 和 `--app`。`largest_files`（应用模式为 `scan.largest_files`）列出至多 N 条记录，每条包含绝对 `path` 和 `logical_bytes`。按逻辑长度降序，同大小按路径字符串降序；硬链接只保留首次计入的路径。空目录或未指定该选项时列表为空。
+
+排行在原有扫描中收集，不二次遍历、不读取文件正文；排行候选只保留至多 N 项（原有硬链接去重集合仍随文件数增长）。排行不会减少总量统计的文件数，也不改变链接、离线项及访问错误的处理。触及时长/数量限制、Ctrl+C 或有跳过/错误时，它仅表示已观测文件的排行，不保证覆盖全部大文件。文件大小不是可清理容量，列表不是删除建议；分享报告前应脱敏其中的完整文件路径。
+
 ### 统计边界
 
 - `--app` 只扫描精确匹配 ID 的 `InstallLocation`，不是整盘搜索，也不根据卸载命令推导路径。只接受本地盘符下的绝对目录，拒绝盘符根、网络/设备路径、相对路径、环境变量和链接/离线根目录。没有安装位置、ID 无效或目录无法读取时返回 JSON 错误及退出码 2，不以零占用冒充成功。
@@ -64,6 +75,7 @@ python -m unittest discover -s tests -p "test_inventory.py" -v
 python -m unittest discover -s tests -p "test_app_scan.py" -v
 python -m unittest discover -s tests -p "test_scan_limits.py" -v
 python -m unittest discover -s tests -p "test_scan_interrupt.py" -v
+python -m unittest discover -s tests -p "test_top_files.py" -v
 ```
 
 测试只使用临时合成文件及模拟错误，不扫描真实应用数据，不执行清理。完整原型的后续功能尚未作为这个基础模块发布。
