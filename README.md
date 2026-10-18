@@ -35,6 +35,8 @@ python -m storage_inspector --app registry.REPLACE_WITH_APP_ID
 
 为 `--path` 或 `--app` 添加 `--top-files 10` 可列出已计入文件中逻辑长度最大的前 10 项，输出在 `largest_files`（应用模式为 `scan.largest_files`）。排行沿用同一次只读扫描，不读取正文；部分扫描仅代表已观测范围，不代表目录全局排行，也不是删除建议。
 
+可重复添加 `--exclude-dir .git --exclude-dir node_modules`，跳过任意层级的同名子目录（不区分大小写，不接受路径或通配符）。实际排除数量会单独报告，结果标记为部分统计；不会进入被排除目录，也不把遗漏占用当成零。
+
 ## 为什么做璃盘
 
 电脑上的空间往往散落在安装目录、AppData、ProgramData、文档、下载和其他磁盘中。单看文件夹大小，很难回答几个实际问题：

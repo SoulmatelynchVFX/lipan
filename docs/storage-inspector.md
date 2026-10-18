@@ -51,6 +51,19 @@ python -m storage_inspector --app registry.REPLACE_WITH_APP_ID --top-files 5 --m
 
 排行在原有扫描中收集，不二次遍历、不读取文件正文；排行候选只保留至多 N 项（原有硬链接去重集合仍随文件数增长）。排行不会减少总量统计的文件数，也不改变链接、离线项及访问错误的处理。触及时长/数量限制、Ctrl+C 或有跳过/错误时，它仅表示已观测文件的排行，不保证覆盖全部大文件。文件大小不是可清理容量，列表不是删除建议；分享报告前应脱敏其中的完整文件路径。
 
+### 排除指定目录
+
+```powershell
+python -m storage_inspector --path "D:\Example" --exclude-dir .git --exclude-dir node_modules
+python -m storage_inspector --app registry.REPLACE_WITH_APP_ID --exclude-dir cache --top-files 10
+```
+
+`--exclude-dir NAME` 可重复指定，仅用于 `--path` 和 `--app`。在任意层级按单个目录名匹配，统一使用 Unicode `casefold` 不区分大小写；不接受路径、通配符、`.`、`..`、控制字符、Windows 文件名禁用字符及末尾点/空格。不展开环境变量，不读取 `.gitignore`，无默认排除项。显式选择的扫描根目录不因自身名称匹配而被排除；同名普通文件仍然计入。
+
+扫描会读取目录项元数据以判断类型，但不枚举被排除目录及其后代。`exclude_dirs` 记录去重排序后的规范化规则；`excluded_directories` 仅计数实际遇到并排除的普通目录，不估算其内部文件数或大小。被排除目录内的嵌套匹配不额外计数；链接及离线属性项仍优先归入 `skipped`，读取元数据失败仍归入错误。应用模式的这些字段位于 `scan`。
+
+只要实际排除了目录，`partial` 就为真，正常结束退出码为 2；`stop_reason` 保持 `null`，除非另有数量/时长限制或中断。规则未命中时不会仅因配置规则而标为部分结果。排除部分不会计入占用总量、文件数量或大文件排行，未扫描的占用不代表零；这不是完整占用，也不是隐私隔离或安全沙箱。
+
 ### 统计边界
 
 - `--app` 只扫描精确匹配 ID 的 `InstallLocation`，不是整盘搜索，也不根据卸载命令推导路径。只接受本地盘符下的绝对目录，拒绝盘符根、网络/设备路径、相对路径、环境变量和链接/离线根目录。没有安装位置、ID 无效或目录无法读取时返回 JSON 错误及退出码 2，不以零占用冒充成功。
@@ -62,7 +75,7 @@ python -m storage_inspector --app registry.REPLACE_WITH_APP_ID --top-files 5 --m
 - 未注册的软件、便携应用和无法读取的注册表项可能缺失。安装位置仅是线索，不代表应用全部数据；本版不做应用占用汇总。
 - `logical_bytes` 是观测到的文件逻辑长度，不是实际磁盘分配量，更不是可清理容量。
 - 单次统计按文件身份去重硬链接；跳过遇到的符号链接、Windows reparse point（含 junction）及离线/召回属性项，不主动读取云占位文件正文。
-- `partial` 表示存在读取错误或跳过项。错误总数完整计数，明细最多保留 100 条。完整统计退出码为 0，部分结果及参数错误为 2。
+- `partial` 表示存在读取错误、跳过/排除项或扫描提前停止。错误总数完整计数，明细最多保留 100 条。完整统计退出码为 0，部分结果及参数错误为 2（中断为 130）。
 - 扫描不是原子快照，文件同时变化可能影响结果；链接检查也不提供针对恶意并发替换的沙箱保证。不要在不可信进程持续改写的目录上运行。
 
 JSON 会包含本机应用信息和绝对路径，不要直接提交或公开。需要保存时将报告放在已忽略的 `.runtime/` 目录，分享前自行脱敏。
@@ -76,6 +89,7 @@ python -m unittest discover -s tests -p "test_app_scan.py" -v
 python -m unittest discover -s tests -p "test_scan_limits.py" -v
 python -m unittest discover -s tests -p "test_scan_interrupt.py" -v
 python -m unittest discover -s tests -p "test_top_files.py" -v
+python -m unittest discover -s tests -p "test_exclude_dirs.py" -v
 ```
 
 测试只使用临时合成文件及模拟错误，不扫描真实应用数据，不执行清理。完整原型的后续功能尚未作为这个基础模块发布。

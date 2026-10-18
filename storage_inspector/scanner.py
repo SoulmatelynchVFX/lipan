@@ -24,10 +24,12 @@ class DirectoryStats:
     errors: list[dict] = field(default_factory=list)
     stop_reason: str | None = None
     largest_files: list[dict] = field(default_factory=list)
+    excluded_directories: int = 0
+    exclude_dirs: list[str] = field(default_factory=list)
 
     @property
     def partial(self):
-        return bool(self.error_count or self.skipped or self.stop_reason)
+        return bool(self.error_count or self.skipped or self.stop_reason or self.excluded_directories)
 
     def record_error(self, path, error):
         self.error_count += 1
@@ -55,13 +57,29 @@ def validate_top_files(top_files=None):
         raise ValueError("top_files 必须是正整数")
 
 
-def directory_stats(path: Path, *, max_files=None, max_seconds=None, top_files=None) -> DirectoryStats:
+def validate_exclude_dirs(exclude_dirs=None):
+    if exclude_dirs is None:
+        return []
+    if not isinstance(exclude_dirs, (list, tuple)):
+        raise ValueError("exclude_dirs 必须是目录名列表")
+    for name in exclude_dirs:
+        if (not isinstance(name, str) or not name or name in (".", "..")
+                or name.endswith((".", " ")) or any(ord(char) < 32 for char in name)
+                or any(char in name for char in '/\\:*?"<>|')):
+            raise ValueError("排除目录必须是单个目录名，不接受路径、通配符或末尾点/空格")
+    return sorted({name.casefold() for name in exclude_dirs})
+
+
+def directory_stats(path: Path, *, max_files=None, max_seconds=None, top_files=None,
+                    exclude_dirs=None) -> DirectoryStats:
     validate_limits(max_files, max_seconds)
     validate_top_files(top_files)
+    excluded_names = validate_exclude_dirs(exclude_dirs)
     deadline = time.monotonic() + max_seconds if max_seconds is not None else None
     # abspath normalizes the supplied path without resolving symlinks.
     root = Path(os.path.abspath(path))
-    result = DirectoryStats(str(root))
+    result = DirectoryStats(str(root), exclude_dirs=excluded_names)
+    excluded_lookup = set(excluded_names)
     # Keep only active directory iterators, rather than collecting a wide directory
     # before examining its files. Close every iterator on early termination too.
     stack = [(root, iter((root,)))]
@@ -93,6 +111,10 @@ def directory_stats(path: Path, *, max_files=None, max_seconds=None, top_files=N
                     result.skipped += 1
                     continue
                 if stat.S_ISDIR(info.st_mode):
+                    # The explicitly selected root is never excluded by its own name.
+                    if current != root and current.name.casefold() in excluded_lookup:
+                        result.excluded_directories += 1
+                        continue
                     stack.append((current, os.scandir(current)))
                 elif stat.S_ISREG(info.st_mode):
                     identity = (info.st_dev, info.st_ino)

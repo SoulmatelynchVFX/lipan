@@ -7,7 +7,7 @@ from pathlib import Path
 import sys
 
 from .app_scan import inspect_app
-from .scanner import directory_stats, validate_limits, validate_top_files
+from .scanner import directory_stats, validate_limits, validate_top_files, validate_exclude_dirs
 from .windows_inventory import discover_inventory
 
 
@@ -20,23 +20,29 @@ def _main(argv=None):
     parser.add_argument("--max-files", type=int, help="扫描至多计入指定数量的文件，必须为正整数")
     parser.add_argument("--max-seconds", type=float, help="扫描时长软限制（秒），必须为有限正数")
     parser.add_argument("--top-files", type=int, help="列出已计入文件中逻辑长度最大的前 N 项，必须为正整数")
+    parser.add_argument("--exclude-dir", action="append", metavar="NAME",
+                        help="跳过同名子目录（不区分大小写，可重复指定，不接受路径或通配符）")
     args = parser.parse_args(argv)
     try:
         validate_limits(args.max_files, args.max_seconds)
         validate_top_files(args.top_files)
+        excluded_names = validate_exclude_dirs(args.exclude_dir)
     except ValueError as error:
         parser.error(str(error))
     if args.list_apps and (args.max_files is not None or args.max_seconds is not None):
         parser.error("扫描限制仅用于 --path 或 --app，不能用于 --list-apps")
     if args.list_apps and args.top_files is not None:
         parser.error("--top-files 仅用于 --path 或 --app，不能用于 --list-apps")
+    if args.list_apps and args.exclude_dir is not None:
+        parser.error("--exclude-dir 仅用于 --path 或 --app，不能用于 --list-apps")
     if args.list_apps or args.app is not None:
         if os.name != "nt":
             parser.error("--list-apps 和 --app 仅支持 Windows")
         inventory = discover_inventory()
     if args.app is not None:
         report = inspect_app(inventory, args.app, max_files=args.max_files,
-                             max_seconds=args.max_seconds, top_files=args.top_files)
+                             max_seconds=args.max_seconds, top_files=args.top_files,
+                             exclude_dirs=excluded_names)
         scan = report.get("scan") or {}
         status = 130 if scan.get("stop_reason") == "interrupted" else 2 if report["partial"] else 0
     elif args.list_apps:
@@ -49,7 +55,8 @@ def _main(argv=None):
         status = 2 if inventory.partial else 0
     else:
         stats = directory_stats(args.path, max_files=args.max_files,
-                                max_seconds=args.max_seconds, top_files=args.top_files)
+                                max_seconds=args.max_seconds, top_files=args.top_files,
+                                exclude_dirs=excluded_names)
         report = {**asdict(stats), "partial": stats.partial,
                   "note": "逻辑长度不是磁盘实际分配量或可清理容量；扫描期间变化可能造成误差。"}
         status = 130 if stats.stop_reason == "interrupted" else 2 if stats.partial else 0

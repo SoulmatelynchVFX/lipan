@@ -69,7 +69,8 @@ class AppScanTests(unittest.TestCase):
             self.assertEqual(result["partial"], inventory_error or scan_error)
             self.assertEqual(result["scan"]["logical_bytes"], 10)
             self.assertEqual(result["scope"], "install_location_only")
-            scan.assert_called_once_with(Path("C:\\Example"), max_files=None, max_seconds=None, top_files=None)
+            scan.assert_called_once_with(Path("C:\\Example"), max_files=None, max_seconds=None,
+                                         top_files=None, exclude_dirs=[])
 
     @unittest.skipUnless(os.name == "nt", "Windows installation paths")
     def test_cli_scans_only_selected_synthetic_install(self):
