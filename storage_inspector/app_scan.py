@@ -22,7 +22,7 @@ def valid_install_location(value: str) -> bool:
 
 
 def inspect_app(inventory: InventoryResult, app_id: str, *, max_files=None, max_seconds=None,
-                top_files=None, exclude_dirs=None) -> dict:
+                top_files=None, exclude_dirs=None, by_extension=False) -> dict:
     validate_limits(max_files, max_seconds)
     validate_top_files(top_files)
     excluded_names = validate_exclude_dirs(exclude_dirs)
@@ -58,7 +58,7 @@ def inspect_app(inventory: InventoryResult, app_id: str, *, max_files=None, max_
     if should_skip(info) or not stat.S_ISDIR(info.st_mode):
         return unavailable("安装位置不是普通目录，或带有链接、离线属性；未开始扫描。")
     stats = directory_stats(path, max_files=max_files, max_seconds=max_seconds,
-                            top_files=top_files, exclude_dirs=excluded_names)
+                            top_files=top_files, exclude_dirs=excluded_names, by_extension=by_extension)
     report["scan"] = {**asdict(stats), "partial": stats.partial}
     report["partial"] = inventory.partial or stats.partial
     return report

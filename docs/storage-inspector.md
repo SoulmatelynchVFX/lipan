@@ -64,6 +64,19 @@ python -m storage_inspector --app registry.REPLACE_WITH_APP_ID --exclude-dir cac
 
 只要实际排除了目录，`partial` 就为真，正常结束退出码为 2；`stop_reason` 保持 `null`，除非另有数量/时长限制或中断。规则未命中时不会仅因配置规则而标为部分结果。排除部分不会计入占用总量、文件数量或大文件排行，未扫描的占用不代表零；这不是完整占用，也不是隐私隔离或安全沙箱。
 
+### 按扩展名汇总
+
+```powershell
+python -m storage_inspector --path "D:\Example" --by-extension
+python -m storage_inspector --app registry.REPLACE_WITH_APP_ID --by-extension --exclude-dir cache
+```
+
+`--by-extension` 仅用于 `--path` 或 `--app`。输出 `extension_summary`（应用模式为 `scan.extension_summary`），每项包含 `extension`、`logical_bytes`、`file_count`。按逻辑字节数降序，同大小按扩展名字符串升序；未开启或没有计入文件时列表为空，零字节文件仍计数。
+
+分组取文件名最后一个扩展名并使用 Unicode `casefold` 合并大小写，例如 `.TXT` 与 `.txt` 合并、`archive.tar.gz` 归入 `.gz`。无扩展名文件（如 `README`、`.env`）归入空字符串 `""`，`.config.json` 归入 `.json`；父目录名称不影响分组。这只是文件名线索，不读取正文，不验证真实类型、所属应用或清理安全性。
+
+在同一次扫描中汇总，无额外遍历；额外内存随不同扩展名数量增长。分组沿用总量统计的硬链接去重：不同后缀的硬链接只归入首次计入路径的分组，遍历顺序变化可能改变归组。排除目录、链接/离线项及访问失败的文件不计入；受限或中断扫描只反映已观测范围，不能据此推断未扫描文件的分布。
+
 ### 统计边界
 
 - `--app` 只扫描精确匹配 ID 的 `InstallLocation`，不是整盘搜索，也不根据卸载命令推导路径。只接受本地盘符下的绝对目录，拒绝盘符根、网络/设备路径、相对路径、环境变量和链接/离线根目录。没有安装位置、ID 无效或目录无法读取时返回 JSON 错误及退出码 2，不以零占用冒充成功。
@@ -90,6 +103,7 @@ python -m unittest discover -s tests -p "test_scan_limits.py" -v
 python -m unittest discover -s tests -p "test_scan_interrupt.py" -v
 python -m unittest discover -s tests -p "test_top_files.py" -v
 python -m unittest discover -s tests -p "test_exclude_dirs.py" -v
+python -m unittest discover -s tests -p "test_extension_summary.py" -v
 ```
 
 测试只使用临时合成文件及模拟错误，不扫描真实应用数据，不执行清理。完整原型的后续功能尚未作为这个基础模块发布。

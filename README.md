@@ -37,6 +37,8 @@ python -m storage_inspector --app registry.REPLACE_WITH_APP_ID
 
 可重复添加 `--exclude-dir .git --exclude-dir node_modules`，跳过任意层级的同名子目录（不区分大小写，不接受路径或通配符）。实际排除数量会单独报告，结果标记为部分统计；不会进入被排除目录，也不把遗漏占用当成零。
 
+添加 `--by-extension` 可按文件名最后一个扩展名汇总逻辑字节数和文件数，按占用降序输出。分组沿用同一次扫描及硬链接去重，仅依据后缀，不识别真实内容类型或判断是否可删。
+
 ## 为什么做璃盘
 
 电脑上的空间往往散落在安装目录、AppData、ProgramData、文档、下载和其他磁盘中。单看文件夹大小，很难回答几个实际问题：

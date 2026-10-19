@@ -26,6 +26,7 @@ class DirectoryStats:
     largest_files: list[dict] = field(default_factory=list)
     excluded_directories: int = 0
     exclude_dirs: list[str] = field(default_factory=list)
+    extension_summary: list[dict] = field(default_factory=list)
 
     @property
     def partial(self):
@@ -71,7 +72,7 @@ def validate_exclude_dirs(exclude_dirs=None):
 
 
 def directory_stats(path: Path, *, max_files=None, max_seconds=None, top_files=None,
-                    exclude_dirs=None) -> DirectoryStats:
+                    exclude_dirs=None, by_extension=False) -> DirectoryStats:
     validate_limits(max_files, max_seconds)
     validate_top_files(top_files)
     excluded_names = validate_exclude_dirs(exclude_dirs)
@@ -85,6 +86,7 @@ def directory_stats(path: Path, *, max_files=None, max_seconds=None, top_files=N
     stack = [(root, iter((root,)))]
     seen = set()
     largest = []
+    extensions = {}
     try:
         while stack:
             if deadline is not None and time.monotonic() >= deadline:
@@ -125,6 +127,13 @@ def directory_stats(path: Path, *, max_files=None, max_seconds=None, top_files=N
                         seen.add(identity)
                     result.logical_bytes += info.st_size
                     result.file_count += 1
+                    if by_extension:
+                        extension = current.suffix.casefold()
+                        group = extensions.setdefault(extension, {
+                            "extension": extension, "logical_bytes": 0, "file_count": 0,
+                        })
+                        group["logical_bytes"] += info.st_size
+                        group["file_count"] += 1
                     if top_files is not None:
                         candidate = (info.st_size, str(current))
                         if len(largest) < top_files:
@@ -147,4 +156,7 @@ def directory_stats(path: Path, *, max_files=None, max_seconds=None, top_files=N
         {"path": path, "logical_bytes": size}
         for size, path in sorted(largest, reverse=True)
     ]
+    result.extension_summary = sorted(
+        extensions.values(), key=lambda group: (-group["logical_bytes"], group["extension"])
+    )
     return result
