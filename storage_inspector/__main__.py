@@ -23,6 +23,7 @@ def _main(argv=None):
     parser.add_argument("--exclude-dir", action="append", metavar="NAME",
                         help="跳过同名子目录（不区分大小写，可重复指定，不接受路径或通配符）")
     parser.add_argument("--by-extension", action="store_true", help="按文件名最后一个扩展名汇总占用，不读取正文")
+    parser.add_argument("--by-directory", action="store_true", help="按一级子目录汇总已计入文件，根目录直属文件单列")
     args = parser.parse_args(argv)
     try:
         validate_limits(args.max_files, args.max_seconds)
@@ -38,6 +39,8 @@ def _main(argv=None):
         parser.error("--exclude-dir 仅用于 --path 或 --app，不能用于 --list-apps")
     if args.list_apps and args.by_extension:
         parser.error("--by-extension 仅用于 --path 或 --app，不能用于 --list-apps")
+    if args.list_apps and args.by_directory:
+        parser.error("--by-directory 仅用于 --path 或 --app，不能用于 --list-apps")
     if args.list_apps or args.app is not None:
         if os.name != "nt":
             parser.error("--list-apps 和 --app 仅支持 Windows")
@@ -45,7 +48,8 @@ def _main(argv=None):
     if args.app is not None:
         report = inspect_app(inventory, args.app, max_files=args.max_files,
                              max_seconds=args.max_seconds, top_files=args.top_files,
-                             exclude_dirs=excluded_names, by_extension=args.by_extension)
+                             exclude_dirs=excluded_names, by_extension=args.by_extension,
+                             by_directory=args.by_directory)
         scan = report.get("scan") or {}
         status = 130 if scan.get("stop_reason") == "interrupted" else 2 if report["partial"] else 0
     elif args.list_apps:
@@ -59,7 +63,8 @@ def _main(argv=None):
     else:
         stats = directory_stats(args.path, max_files=args.max_files,
                                 max_seconds=args.max_seconds, top_files=args.top_files,
-                                exclude_dirs=excluded_names, by_extension=args.by_extension)
+                                exclude_dirs=excluded_names, by_extension=args.by_extension,
+                                by_directory=args.by_directory)
         report = {**asdict(stats), "partial": stats.partial,
                   "note": "逻辑长度不是磁盘实际分配量或可清理容量；扫描期间变化可能造成误差。"}
         status = 130 if stats.stop_reason == "interrupted" else 2 if stats.partial else 0

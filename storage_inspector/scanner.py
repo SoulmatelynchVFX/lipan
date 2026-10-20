@@ -27,6 +27,7 @@ class DirectoryStats:
     excluded_directories: int = 0
     exclude_dirs: list[str] = field(default_factory=list)
     extension_summary: list[dict] = field(default_factory=list)
+    directory_summary: list[dict] = field(default_factory=list)
 
     @property
     def partial(self):
@@ -72,7 +73,7 @@ def validate_exclude_dirs(exclude_dirs=None):
 
 
 def directory_stats(path: Path, *, max_files=None, max_seconds=None, top_files=None,
-                    exclude_dirs=None, by_extension=False) -> DirectoryStats:
+                    exclude_dirs=None, by_extension=False, by_directory=False) -> DirectoryStats:
     validate_limits(max_files, max_seconds)
     validate_top_files(top_files)
     excluded_names = validate_exclude_dirs(exclude_dirs)
@@ -87,6 +88,7 @@ def directory_stats(path: Path, *, max_files=None, max_seconds=None, top_files=N
     seen = set()
     largest = []
     extensions = {}
+    directories = {}
     try:
         while stack:
             if deadline is not None and time.monotonic() >= deadline:
@@ -127,6 +129,20 @@ def directory_stats(path: Path, *, max_files=None, max_seconds=None, top_files=N
                         seen.add(identity)
                     result.logical_bytes += info.st_size
                     result.file_count += 1
+                    if by_directory:
+                        if current == root:
+                            group_path, kind = root, "file"
+                        elif current.parent == root:
+                            group_path, kind = root, "direct_files"
+                        else:
+                            group_path = root / current.relative_to(root).parts[0]
+                            kind = "directory"
+                        key = str(group_path)
+                        group = directories.setdefault(key, {
+                            "path": key, "kind": kind, "logical_bytes": 0, "file_count": 0,
+                        })
+                        group["logical_bytes"] += info.st_size
+                        group["file_count"] += 1
                     if by_extension:
                         extension = current.suffix.casefold()
                         group = extensions.setdefault(extension, {
@@ -158,5 +174,8 @@ def directory_stats(path: Path, *, max_files=None, max_seconds=None, top_files=N
     ]
     result.extension_summary = sorted(
         extensions.values(), key=lambda group: (-group["logical_bytes"], group["extension"])
+    )
+    result.directory_summary = sorted(
+        directories.values(), key=lambda group: (-group["logical_bytes"], group["path"])
     )
     return result

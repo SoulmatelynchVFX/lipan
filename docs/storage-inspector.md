@@ -77,6 +77,19 @@ python -m storage_inspector --app registry.REPLACE_WITH_APP_ID --by-extension --
 
 在同一次扫描中汇总，无额外遍历；额外内存随不同扩展名数量增长。分组沿用总量统计的硬链接去重：不同后缀的硬链接只归入首次计入路径的分组，遍历顺序变化可能改变归组。排除目录、链接/离线项及访问失败的文件不计入；受限或中断扫描只反映已观测范围，不能据此推断未扫描文件的分布。
 
+### 按一级子目录汇总
+
+```powershell
+python -m storage_inspector --path "D:\Example" --by-directory --top-files 10
+python -m storage_inspector --app registry.REPLACE_WITH_APP_ID --by-directory --by-extension
+```
+
+`--by-directory` 仅用于 `--path` 和 `--app`，输出 `directory_summary`（应用模式为 `scan.directory_summary`）。每项包含绝对 `path`、`kind`、`logical_bytes`、`file_count`，按逻辑字节数降序，同大小按路径字符串升序。一级子目录及其全部已观测后代归为一组，`kind` 为 `directory`；根目录直属文件归为路径等于扫描根的 `direct_files` 组，不包含子目录占用。显式扫描单文件时只有一个 `file` 组。
+
+只列出至少计入一个普通文件的分组，零字节文件仍计数。未开启或没有计入文件时列表为空；空目录、全被去重的目录、被排除或无法读取的目录不会以零占用条目出现。目录缺席不代表不存在或没有占用，应结合扫描的 `partial`、错误和排除计数理解。分组不单独判定完整性；受限或中断扫描的分组也仅代表已观测范围。
+
+汇总在原有遍历中完成，不重新扫描各个子目录，额外内存随实际出现的分组数增长。跨目录硬链接沿用全局去重，仅归入首次计入路径所在组，遍历顺序可能影响分组占用；因此分组不是各目录独立扫描的大小，也不能据此推算删除目录能释放多少空间。分组路径仍属于本机信息，分享前须脱敏。
+
 ### 统计边界
 
 - `--app` 只扫描精确匹配 ID 的 `InstallLocation`，不是整盘搜索，也不根据卸载命令推导路径。只接受本地盘符下的绝对目录，拒绝盘符根、网络/设备路径、相对路径、环境变量和链接/离线根目录。没有安装位置、ID 无效或目录无法读取时返回 JSON 错误及退出码 2，不以零占用冒充成功。
@@ -104,6 +117,7 @@ python -m unittest discover -s tests -p "test_scan_interrupt.py" -v
 python -m unittest discover -s tests -p "test_top_files.py" -v
 python -m unittest discover -s tests -p "test_exclude_dirs.py" -v
 python -m unittest discover -s tests -p "test_extension_summary.py" -v
+python -m unittest discover -s tests -p "test_directory_summary.py" -v
 ```
 
 测试只使用临时合成文件及模拟错误，不扫描真实应用数据，不执行清理。完整原型的后续功能尚未作为这个基础模块发布。
