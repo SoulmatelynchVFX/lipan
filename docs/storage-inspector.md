@@ -90,6 +90,23 @@ python -m storage_inspector --app registry.REPLACE_WITH_APP_ID --by-directory --
 
 汇总在原有遍历中完成，不重新扫描各个子目录，额外内存随实际出现的分组数增长。跨目录硬链接沿用全局去重，仅归入首次计入路径所在组，遍历顺序可能影响分组占用；因此分组不是各目录独立扫描的大小，也不能据此推算删除目录能释放多少空间。分组路径仍属于本机信息，分享前须脱敏。
 
+### 跳过原因与路径明细
+
+路径扫描自动输出 `skip_reason_counts`、`skip_details`、`skip_details_omitted`；应用安装目录扫描时位于 `scan` 中，无需新参数。每条明细包含绝对 `path` 和一个主要 `reason`。保留按遍历顺序遇到的前 100 条，总数继续计入 `skipped` 和各原因计数，超过上限的条数计入 `skip_details_omitted`，不挤占原有的 100 条访问错误明细额度。
+
+| reason | 含义 |
+|---|---|
+| `symbolic_link` | 元数据显示为符号链接 |
+| `reparse_point` | Windows 重解析点属性（包括 junction 等，不判断具体子类型） |
+| `offline` | 离线属性 |
+| `recall_on_open` | 打开时需召回的属性 |
+| `recall_on_data_access` | 访问数据时需召回的属性 |
+| `special_file` | 不属于普通文件或目录的其他文件类型 |
+
+同一项只计一次：符号链接优先，其次按上表属性顺序选择首个命中原因；无这些标记的特殊类型使用 `special_file`。主要原因不是完整属性清单，不能仅据此认定属于某个云服务。判断只使用已经读取的元数据，不跟随链接、不打开文件正文，不为补明细重扫。
+
+访问失败仍在 `errors` / `error_count`；主动排除仍在 `exclude_dirs` / `excluded_directories`，硬链接去重仍在 `duplicates`，不混入跳过明细。中断或触及限制时保留已收集明细，未遍历项及被跳过目录的后代不生成虚假记录。明细条数不是遗漏文件总数，更不是可释放容量；`--app` 若在扫描前拒绝不安全安装根目录，仍返回 `scan: null` 和原有错误说明。新增路径也需在分享报告前脱敏。
+
 ### 统计边界
 
 - `--app` 只扫描精确匹配 ID 的 `InstallLocation`，不是整盘搜索，也不根据卸载命令推导路径。只接受本地盘符下的绝对目录，拒绝盘符根、网络/设备路径、相对路径、环境变量和链接/离线根目录。没有安装位置、ID 无效或目录无法读取时返回 JSON 错误及退出码 2，不以零占用冒充成功。
@@ -118,6 +135,7 @@ python -m unittest discover -s tests -p "test_top_files.py" -v
 python -m unittest discover -s tests -p "test_exclude_dirs.py" -v
 python -m unittest discover -s tests -p "test_extension_summary.py" -v
 python -m unittest discover -s tests -p "test_directory_summary.py" -v
+python -m unittest discover -s tests -p "test_skip_details.py" -v
 ```
 
 测试只使用临时合成文件及模拟错误，不扫描真实应用数据，不执行清理。完整原型的后续功能尚未作为这个基础模块发布。

@@ -83,7 +83,7 @@ class ExcludeDirectoryTests(unittest.TestCase):
 
     def test_links_and_offline_items_remain_skipped_not_excluded(self):
         (self.root / "cache").mkdir()
-        with patch("storage_inspector.scanner.should_skip", side_effect=[False, True]):
+        with patch("storage_inspector.scanner.skip_reason", side_effect=[None, "offline"]):
             result = directory_stats(self.root, exclude_dirs=["cache"])
         self.assertEqual((result.skipped, result.excluded_directories), (1, 0))
 

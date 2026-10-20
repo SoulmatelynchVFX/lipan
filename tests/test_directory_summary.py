@@ -109,7 +109,7 @@ class DirectorySummaryTests(unittest.TestCase):
         skipped = self.file("offline/file", 30).parent
         missing = self.root / "missing"
         with patch("storage_inspector.scanner.os.scandir", return_value=iter([skipped, missing, kept])), \
-                patch("storage_inspector.scanner.should_skip", side_effect=[False, True, False]):
+                patch("storage_inspector.scanner.skip_reason", side_effect=[None, "offline", None]):
             result = directory_stats(self.root, by_directory=True)
         self.assertEqual(result.directory_summary, [group(self.root, 3, 1, "direct_files")])
         self.assertEqual((result.skipped, result.error_count), (1, 1))

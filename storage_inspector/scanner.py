@@ -9,8 +9,14 @@ import time
 
 
 # Reparse points include Windows junctions and many cloud placeholders.
-SKIP_ATTRIBUTES = 0x400 | 0x1000 | 0x40000 | 0x400000
+SKIP_ATTRIBUTE_REASONS = (
+    (0x400, "reparse_point"),
+    (0x1000, "offline"),
+    (0x40000, "recall_on_open"),
+    (0x400000, "recall_on_data_access"),
+)
 MAX_ERROR_DETAILS = 100
+MAX_SKIP_DETAILS = 100
 
 
 @dataclass
@@ -28,6 +34,9 @@ class DirectoryStats:
     exclude_dirs: list[str] = field(default_factory=list)
     extension_summary: list[dict] = field(default_factory=list)
     directory_summary: list[dict] = field(default_factory=list)
+    skip_reason_counts: dict[str, int] = field(default_factory=dict)
+    skip_details: list[dict] = field(default_factory=list)
+    skip_details_omitted: int = 0
 
     @property
     def partial(self):
@@ -38,11 +47,28 @@ class DirectoryStats:
         if len(self.errors) < MAX_ERROR_DETAILS:
             self.errors.append({"path": str(path), "message": str(error)})
 
+    def record_skip(self, path, reason):
+        self.skipped += 1
+        self.skip_reason_counts[reason] = self.skip_reason_counts.get(reason, 0) + 1
+        if len(self.skip_details) < MAX_SKIP_DETAILS:
+            self.skip_details.append({"path": str(path), "reason": reason})
+        else:
+            self.skip_details_omitted += 1
+
+
+def skip_reason(info):
+    """Return one primary reason without following a link or reading file data."""
+    if stat.S_ISLNK(info.st_mode):
+        return "symbolic_link"
+    attributes = getattr(info, "st_file_attributes", 0)
+    for flag, reason in SKIP_ATTRIBUTE_REASONS:
+        if attributes & flag:
+            return reason
+    return None
+
 
 def should_skip(info):
-    return stat.S_ISLNK(info.st_mode) or bool(
-        getattr(info, "st_file_attributes", 0) & SKIP_ATTRIBUTES
-    )
+    return skip_reason(info) is not None
 
 
 def validate_limits(max_files=None, max_seconds=None):
@@ -111,8 +137,9 @@ def directory_stats(path: Path, *, max_files=None, max_seconds=None, top_files=N
             current = entry if isinstance(entry, Path) else Path(entry.path)
             try:
                 info = current.lstat()
-                if should_skip(info):
-                    result.skipped += 1
+                reason = skip_reason(info)
+                if reason is not None:
+                    result.record_skip(current, reason)
                     continue
                 if stat.S_ISDIR(info.st_mode):
                     # The explicitly selected root is never excluded by its own name.
@@ -157,7 +184,7 @@ def directory_stats(path: Path, *, max_files=None, max_seconds=None, top_files=N
                         else:
                             heapq.heappushpop(largest, candidate)
                 else:
-                    result.skipped += 1
+                    result.record_skip(current, "special_file")
             except OSError as error:
                 result.record_error(current, error)
     except KeyboardInterrupt:

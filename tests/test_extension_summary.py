@@ -90,7 +90,7 @@ class ExtensionSummaryTests(unittest.TestCase):
         self.file("cache/big.dat", 50)
         with patch("storage_inspector.scanner.os.scandir",
                    return_value=iter([self.root / "cache", skipped, kept])), \
-                patch("storage_inspector.scanner.should_skip", side_effect=[False, False, True, False]):
+                patch("storage_inspector.scanner.skip_reason", side_effect=[None, None, "offline", None]):
             result = directory_stats(self.root, exclude_dirs=["cache"], by_extension=True, top_files=1)
         self.assertEqual(result.extension_summary, [group(".txt", 3, 1)])
         self.assertEqual((result.excluded_directories, result.skipped), (1, 1))

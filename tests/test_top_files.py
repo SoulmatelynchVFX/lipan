@@ -71,7 +71,7 @@ class TopFilesTests(unittest.TestCase):
 
     def test_skipped_files_are_not_ranked(self):
         self.file("sample", 3)
-        with patch("storage_inspector.scanner.should_skip", side_effect=[False, True]):
+        with patch("storage_inspector.scanner.skip_reason", side_effect=[None, "offline"]):
             result = directory_stats(self.root, top_files=5)
         self.assertEqual(result.largest_files, [])
         self.assertEqual(result.skipped, 1)
