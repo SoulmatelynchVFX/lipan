@@ -11,6 +11,9 @@ from .scanner import directory_stats, validate_limits, validate_top_files, valid
 from .windows_inventory import discover_inventory
 
 
+SCHEMA_VERSION = 1
+
+
 def _main(argv=None):
     parser = argparse.ArgumentParser(description="璃盘：只读应用清单与指定路径统计")
     action = parser.add_mutually_exclusive_group(required=True)
@@ -46,6 +49,7 @@ def _main(argv=None):
             parser.error("--list-apps 和 --app 仅支持 Windows")
         inventory = discover_inventory()
     if args.app is not None:
+        report_type = "application_scan"
         report = inspect_app(inventory, args.app, max_files=args.max_files,
                              max_seconds=args.max_seconds, top_files=args.top_files,
                              exclude_dirs=excluded_names, by_extension=args.by_extension,
@@ -53,6 +57,7 @@ def _main(argv=None):
         scan = report.get("scan") or {}
         status = 130 if scan.get("stop_reason") == "interrupted" else 2 if report["partial"] else 0
     elif args.list_apps:
+        report_type = "application_inventory"
         report = {
             **asdict(inventory),
             "source": "Windows uninstall registry",
@@ -61,6 +66,7 @@ def _main(argv=None):
         }
         status = 2 if inventory.partial else 0
     else:
+        report_type = "path_scan"
         stats = directory_stats(args.path, max_files=args.max_files,
                                 max_seconds=args.max_seconds, top_files=args.top_files,
                                 exclude_dirs=excluded_names, by_extension=args.by_extension,
@@ -68,6 +74,8 @@ def _main(argv=None):
         report = {**asdict(stats), "partial": stats.partial,
                   "note": "逻辑长度不是磁盘实际分配量或可清理容量；扫描期间变化可能造成误差。"}
         status = 130 if stats.stop_reason == "interrupted" else 2 if stats.partial else 0
+    # The top-level version governs the complete document, including nested objects.
+    report = {"schema_version": SCHEMA_VERSION, "report_type": report_type, **report}
     # ASCII escaping also makes redirected output usable with legacy Windows encodings.
     print(json.dumps(report, ensure_ascii=True, indent=2))
     return status

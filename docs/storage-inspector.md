@@ -17,6 +17,8 @@ python -m storage_inspector --app registry.REPLACE_WITH_APP_ID
 
 结果为标准输出中的 JSON，不自动保存报告。不带参数只显示用法。程序不读取文件正文，不删除、移动文件或调用外部服务。
 
+每份 JSON 报告的顶层带有 `schema_version`（当前为整数 `1`）和 `report_type`：`--path` 为 `path_scan`，`--list-apps` 为 `application_inventory`，`--app` 为 `application_scan`。版本适用于整个文档，内层 `scan` 不重复添加版本字段。字段类型、空值、兼容规则及错误输出边界见 [报告字段规范](schema.md)。
+
 ## 中断扫描
 
 `--path` 或 `--app` 的目录遍历期间按一次 Ctrl+C，收到中断后会关闭活动目录迭代器，并输出已有观测数据：`stop_reason` 为 `interrupted`，`partial` 为真，退出码为 130。应用模式的停止原因位于 `scan.stop_reason`，顶层也会标记部分结果。零文件的中断结果不代表目录为空，中断不是访问错误，不增加 `error_count`。
@@ -126,6 +128,7 @@ JSON 会包含本机应用信息和绝对路径，不要直接提交或公开。
 ## 验证
 
 ```powershell
+python -m unittest discover -s tests -p "test_report_schema.py" -v
 python -m unittest discover -s tests -p "test_storage_inspector.py" -v
 python -m unittest discover -s tests -p "test_inventory.py" -v
 python -m unittest discover -s tests -p "test_app_scan.py" -v
