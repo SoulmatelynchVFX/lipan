@@ -125,9 +125,31 @@ python -m storage_inspector --app registry.REPLACE_WITH_APP_ID --by-directory --
 
 JSON 会包含本机应用信息和绝对路径，不要直接提交或公开。需要保存时将报告放在已忽略的 `.runtime/` 目录，分享前自行脱敏。
 
+## CSV 文件明细
+
+```powershell
+python -m storage_inspector --path "D:\Example" --format csv
+python -m storage_inspector --app registry.REPLACE_WITH_APP_ID --format csv --max-files 10000
+```
+
+CSV 仅用于 `--path` / `--app`，与 `--by-extension`、`--by-directory`、`--top-files` 互斥。可组合扫描上限和目录排除；默认 JSON 不变。
+
+- stdout：UTF-8、无 BOM、CRLF 记录分隔，首行为 `path,size,modified`。空目录只有表头。路径为绝对路径，大小是逻辑字节数，修改时间为 UTC ISO 8601（例如 `2024-01-01T00:00:00.000000Z`）。时间不可用时留空，不猜测日期。
+- stderr：扫描结束时输出一行带 `schema_version` 的 JSON 状态，沿用原扫描字段，另含 `csv.rows_written` 和 `csv.missing_modified`。未知时间使顶层 `partial` 为真；应用模式内层 `scan.partial` 仍仅描述扫描缺口。没有结束状态不能推断 CSV 完整。
+- 退出码：完整为 0；部分扫描、未知时间或参数错误为 2；扫描中断为 130；CSV 写入失败为 1。参数错误在输出表头前拒绝；写入失败可能仅留下部分 CSV，不输出成功状态。中断发生在输出记录内部时，不保证最后一条记录完整。
+
+记录沿用同一次扫描及其硬链接去重、链接/离线跳过、排除和上限规则；不重新读取元数据、不读取文件正文。按遍历顺序输出，不排序、不收集全部文件明细；硬链接去重索引仍随已见文件数增长。扫描不是原子快照。
+
+CSV 的逗号、引号、换行由标准库转义，保留路径原值。**CSV 引号转义不等于电子表格公式注入防护**；导入时明确选择 UTF-8，并将路径列按文本处理，不对不可信文件名启用公式或自动转换。
+
+当前无自动保存或 `--output` 选项。使用 shell 重定向时将 stdout 和 stderr 分开，不使用 `2>&1`；检查退出码及状态。输出目标必须放在扫描树之外，避免 shell 提前创建报告文件后被计入扫描。Windows PowerShell 的文本重定向可能改变编码，需核对所用 shell 的行为。报告含本机绝对路径，勿直接提交或公开。
+
+格式实现参考 Python 3.11 [csv](https://docs.python.org/3.11/library/csv.html) 与 [datetime](https://docs.python.org/3.11/library/datetime.html) 文档。
+
 ## 验证
 
 ```powershell
+python -m unittest discover -s tests -p "test_csv_output.py" -v
 python -m unittest discover -s tests -p "test_report_schema.py" -v
 python -m unittest discover -s tests -p "test_storage_inspector.py" -v
 python -m unittest discover -s tests -p "test_inventory.py" -v

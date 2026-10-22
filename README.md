@@ -21,7 +21,9 @@ python -m storage_inspector --path "D:\Example"
 python -m storage_inspector --app registry.REPLACE_WITH_APP_ID
 ```
 
-输出为 JSON，不自动保存或上传。统计会跳过遇到的链接及离线属性项，对硬链接去重，并报告访问失败。文件逻辑长度不等于磁盘实际分配量，更不代表可清理容量；本版不汇总应用全部占用。
+默认输出为 JSON，不自动保存或上传。统计会跳过遇到的链接及离线属性项，对硬链接去重，并报告访问失败。文件逻辑长度不等于磁盘实际分配量，更不代表可清理容量；本版不汇总应用全部占用。
+
+为 `--path` 或 `--app` 添加 `--format csv` 可逐条输出文件明细 `path,size,modified`：绝对路径、逻辑字节数、UTC 修改时间。stdout 只包含 CSV，带版本的扫描状态写入 stderr；空目录仅输出表头，部分扫描返回非零退出码。不能同时使用扩展名/目录汇总或大文件排行；保存与导入注意事项见 [CSV 使用说明](docs/storage-inspector.md#csv-文件明细)。
 
 JSON 报告顶层包含 `schema_version: 1` 和 `report_type`，分别标识字段规范版本与报告类型（路径统计、应用清单或单应用扫描）。完整字段、空值及兼容约定见 [报告字段规范](docs/schema.md)。部分结果和扫描中断报告也带版本信息；参数错误等未生成报告的情况仍只输出错误提示。
 

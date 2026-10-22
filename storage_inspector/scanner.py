@@ -99,7 +99,8 @@ def validate_exclude_dirs(exclude_dirs=None):
 
 
 def directory_stats(path: Path, *, max_files=None, max_seconds=None, top_files=None,
-                    exclude_dirs=None, by_extension=False, by_directory=False) -> DirectoryStats:
+                    exclude_dirs=None, by_extension=False, by_directory=False,
+                    on_file=None) -> DirectoryStats:
     validate_limits(max_files, max_seconds)
     validate_top_files(top_files)
     excluded_names = validate_exclude_dirs(exclude_dirs)
@@ -135,6 +136,7 @@ def directory_stats(path: Path, *, max_files=None, max_seconds=None, top_files=N
                     result.record_error(parent, error)
                 continue
             current = entry if isinstance(entry, Path) else Path(entry.path)
+            file_record = None
             try:
                 info = current.lstat()
                 reason = skip_reason(info)
@@ -183,10 +185,14 @@ def directory_stats(path: Path, *, max_files=None, max_seconds=None, top_files=N
                             heapq.heappush(largest, candidate)
                         else:
                             heapq.heappushpop(largest, candidate)
+                    file_record = (current, info)
                 else:
                     result.record_skip(current, "special_file")
             except OSError as error:
                 result.record_error(current, error)
+            # Destination errors must not be mistaken for unreadable source files.
+            if file_record is not None and on_file is not None:
+                on_file(*file_record)
     except KeyboardInterrupt:
         # Preserve observations without mistaking an interrupted walk for completion.
         result.stop_reason = "interrupted"

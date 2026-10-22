@@ -149,7 +149,17 @@
 | `errors` | array of object | 前 100 条“注册表错误”。 |
 | `missing_locations` | array of string | 未找到的卸载根键。 |
 
+## CSV 模式的状态报告
+
+`--format csv` 的 stdout 不是 JSON；列契约为 `path,size,modified`，依次表示绝对路径、逻辑字节数和 UTC ISO 8601 修改时间（六位小数、`Z` 后缀；未知为空）。列值保留原路径，不进行公式转义。详见 [CSV 使用说明](storage-inspector.md#csv-文件明细)。
+
+stderr 在结束时输出一行 JSON，沿用本文的版本和路径/单应用字段，并额外包含 `csv` 对象：`rows_written` 为成功写入的记录数，`missing_modified` 为无法表示修改时间的文件数，均为非负整数。后者非零使顶层 `partial` 为真，应用内层扫描状态不受该导出字段影响。默认 JSON 不添加此对象。
+
+CSV 完整退出 0，部分结果或参数错误退出 2，中断退出 130，输出失败退出 1。参数错误、扫描前中断或输出失败可能没有 JSON 状态；输出过程中中断也不保证最后一条 CSV 或状态完整。不能仅凭表头或已有行判断完整性。
+
 ## 退出码与无报告情形
+
+下表为默认 JSON 模式；CSV 模式见上节。
 
 | 退出码 | 输出 |
 | --- | --- |

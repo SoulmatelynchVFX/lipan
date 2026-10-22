@@ -7,6 +7,7 @@ from pathlib import Path
 import sys
 
 from .app_scan import inspect_app
+from .csv_output import CsvFileWriter, CsvOutputError
 from .scanner import directory_stats, validate_limits, validate_top_files, validate_exclude_dirs
 from .windows_inventory import discover_inventory
 
@@ -27,6 +28,8 @@ def _main(argv=None):
                         help="跳过同名子目录（不区分大小写，可重复指定，不接受路径或通配符）")
     parser.add_argument("--by-extension", action="store_true", help="按文件名最后一个扩展名汇总占用，不读取正文")
     parser.add_argument("--by-directory", action="store_true", help="按一级子目录汇总已计入文件，根目录直属文件单列")
+    parser.add_argument("--format", choices=("json", "csv"), default="json",
+                        help="输出格式；csv 仅输出文件明细，状态报告写入 stderr")
     args = parser.parse_args(argv)
     try:
         validate_limits(args.max_files, args.max_seconds)
@@ -34,6 +37,14 @@ def _main(argv=None):
         excluded_names = validate_exclude_dirs(args.exclude_dir)
     except ValueError as error:
         parser.error(str(error))
+    if args.format == "csv":
+        if args.list_apps:
+            parser.error("--format csv 仅用于 --path 或 --app，不能用于 --list-apps")
+        for option, enabled in (("--by-extension", args.by_extension),
+                                ("--by-directory", args.by_directory),
+                                ("--top-files", args.top_files is not None)):
+            if enabled:
+                parser.error(f"--format csv 不能与 {option} 同时使用")
     if args.list_apps and (args.max_files is not None or args.max_seconds is not None):
         parser.error("扫描限制仅用于 --path 或 --app，不能用于 --list-apps")
     if args.list_apps and args.top_files is not None:
@@ -48,12 +59,14 @@ def _main(argv=None):
         if os.name != "nt":
             parser.error("--list-apps 和 --app 仅支持 Windows")
         inventory = discover_inventory()
+    csv_output = CsvFileWriter(sys.stdout) if args.format == "csv" else None
+    scan_options = {"on_file": csv_output.write_file} if csv_output is not None else {}
     if args.app is not None:
         report_type = "application_scan"
         report = inspect_app(inventory, args.app, max_files=args.max_files,
                              max_seconds=args.max_seconds, top_files=args.top_files,
                              exclude_dirs=excluded_names, by_extension=args.by_extension,
-                             by_directory=args.by_directory)
+                             by_directory=args.by_directory, **scan_options)
         scan = report.get("scan") or {}
         status = 130 if scan.get("stop_reason") == "interrupted" else 2 if report["partial"] else 0
     elif args.list_apps:
@@ -70,20 +83,28 @@ def _main(argv=None):
         stats = directory_stats(args.path, max_files=args.max_files,
                                 max_seconds=args.max_seconds, top_files=args.top_files,
                                 exclude_dirs=excluded_names, by_extension=args.by_extension,
-                                by_directory=args.by_directory)
+                                by_directory=args.by_directory, **scan_options)
         report = {**asdict(stats), "partial": stats.partial,
                   "note": "逻辑长度不是磁盘实际分配量或可清理容量；扫描期间变化可能造成误差。"}
         status = 130 if stats.stop_reason == "interrupted" else 2 if stats.partial else 0
     # The top-level version governs the complete document, including nested objects.
     report = {"schema_version": SCHEMA_VERSION, "report_type": report_type, **report}
-    # ASCII escaping also makes redirected output usable with legacy Windows encodings.
-    print(json.dumps(report, ensure_ascii=True, indent=2))
+    if csv_output is not None:
+        csv_output.finish(report, sys.stderr)
+        if csv_output.missing_modified and status == 0:
+            status = 2
+    else:
+        # ASCII escaping also makes redirected output usable with legacy Windows encodings.
+        print(json.dumps(report, ensure_ascii=True, indent=2))
     return status
 
 
 def main(argv=None):
     try:
         return _main(argv)
+    except CsvOutputError as error:
+        print(f"CSV 输出失败，结果可能不完整：{error}", file=sys.stderr)
+        return 1
     except KeyboardInterrupt:
         # Inventory discovery and output may be interrupted before a report is ready.
         print("操作已中断，未输出完整报告。", file=sys.stderr)
